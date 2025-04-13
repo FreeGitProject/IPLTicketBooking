@@ -116,9 +116,6 @@ namespace IPLTicketBooking.Services
 
 		public async Task<SeatHoldResult> HoldSeatsAsync(string eventId, List<string> seatIds, string userId)
 		{
-			using var session = await _eventSeats.Database.Client.StartSessionAsync();
-			session.StartTransaction();
-
 			try
 			{
 				var holdUntil = DateTime.UtcNow.Add(_seatHoldDuration);
@@ -127,12 +124,11 @@ namespace IPLTicketBooking.Services
 				var seatsFilter = Builders<EventSeat>.Filter.In(es => es.Id, seatIds) &
 								Builders<EventSeat>.Filter.Eq(es => es.EventId, eventId);
 
-				var seats = await _eventSeats.Find(session, seatsFilter).ToListAsync();
+				var seats = await _eventSeats.Find(seatsFilter).ToListAsync();
 
 				if (seats.Count != seatIds.Count)
 				{
 					var missingSeats = seatIds.Except(seats.Select(s => s.Id)).ToList();
-					await session.AbortTransactionAsync();
 					return new SeatHoldResult
 					{
 						Success = false,
@@ -140,7 +136,7 @@ namespace IPLTicketBooking.Services
 					};
 				}
 
-				// 2. Check seat availability (available or held but expired)
+				// 2. Check seat availability
 				var unavailableSeats = seats
 					.Where(s => s.Status == "booked" ||
 							  (s.Status == "held" && s.HeldUntil >= DateTime.UtcNow))
@@ -148,7 +144,6 @@ namespace IPLTicketBooking.Services
 
 				if (unavailableSeats.Any())
 				{
-					await session.AbortTransactionAsync();
 					return new SeatHoldResult
 					{
 						Success = false,
@@ -173,14 +168,10 @@ namespace IPLTicketBooking.Services
 					.Set(es => es.HeldUntil, holdUntil)
 					.Inc(es => es.Version, 1);
 
-				var updateResult = await _eventSeats.UpdateManyAsync(
-					session,
-					holdFilter,
-					holdUpdate);
+				var updateResult = await _eventSeats.UpdateManyAsync(holdFilter, holdUpdate);
 
 				if (updateResult.ModifiedCount != seatIds.Count)
 				{
-					await session.AbortTransactionAsync();
 					return new SeatHoldResult
 					{
 						Success = false,
@@ -199,9 +190,7 @@ namespace IPLTicketBooking.Services
 					CreatedAt = DateTime.UtcNow
 				};
 
-				await _seatHolds.InsertOneAsync(session, hold);
-
-				await session.CommitTransactionAsync();
+				await _seatHolds.InsertOneAsync(hold);
 
 				return new SeatHoldResult
 				{
@@ -213,17 +202,14 @@ namespace IPLTicketBooking.Services
 			}
 			catch (Exception ex)
 			{
-				await session.AbortTransactionAsync();
 				_logger.LogError(ex, "Error holding seats for event {EventId}", eventId);
 				throw;
 			}
 		}
 
+
 		public async Task<BookingResult> BookSeatsAsync(string eventId, string holdId, List<string> seatIds, string userId)
 		{
-			using var session = await _eventSeats.Database.Client.StartSessionAsync();
-			session.StartTransaction();
-
 			try
 			{
 				// 1. Verify the seat hold is still valid
@@ -231,11 +217,10 @@ namespace IPLTicketBooking.Services
 								Builders<SeatHold>.Filter.Eq(h => h.UserId, userId) &
 								Builders<SeatHold>.Filter.Gt(h => h.HeldUntil, DateTime.UtcNow);
 
-				var hold = await _seatHolds.Find(session, holdFilter).FirstOrDefaultAsync();
+				var hold = await _seatHolds.Find(holdFilter).FirstOrDefaultAsync();
 
 				if (hold == null)
 				{
-					await session.AbortTransactionAsync();
 					return new BookingResult
 					{
 						Success = false,
@@ -246,7 +231,6 @@ namespace IPLTicketBooking.Services
 				// Verify the requested seats match the held seats
 				if (!seatIds.All(id => hold.SeatIds.Contains(id)))
 				{
-					await session.AbortTransactionAsync();
 					return new BookingResult
 					{
 						Success = false,
@@ -255,10 +239,9 @@ namespace IPLTicketBooking.Services
 				}
 
 				// 2. Get the event for pricing and validation
-				var eventObj = await _events.Find(session, e => e.Id == eventId).FirstOrDefaultAsync();
+				var eventObj = await _events.Find(e => e.Id == eventId).FirstOrDefaultAsync();
 				if (eventObj == null)
 				{
-					await session.AbortTransactionAsync();
 					return new BookingResult
 					{
 						Success = false,
@@ -267,10 +250,9 @@ namespace IPLTicketBooking.Services
 				}
 
 				// 3. Get the stadium for seat details
-				var stadium = await _stadiums.Find(session, s => s.Id == eventObj.StadiumId).FirstOrDefaultAsync();
+				var stadium = await _stadiums.Find(s => s.Id == eventObj.StadiumId).FirstOrDefaultAsync();
 				if (stadium == null)
 				{
-					await session.AbortTransactionAsync();
 					return new BookingResult
 					{
 						Success = false,
@@ -284,11 +266,10 @@ namespace IPLTicketBooking.Services
 								Builders<EventSeat>.Filter.Eq(es => es.Status, "held") &
 								Builders<EventSeat>.Filter.Gt(es => es.HeldUntil, DateTime.UtcNow);
 
-				var heldSeats = await _eventSeats.Find(session, seatsFilter).ToListAsync();
+				var heldSeats = await _eventSeats.Find(seatsFilter).ToListAsync();
 
 				if (heldSeats.Count != seatIds.Count)
 				{
-					await session.AbortTransactionAsync();
 					return new BookingResult
 					{
 						Success = false,
@@ -337,12 +318,12 @@ namespace IPLTicketBooking.Services
 					}).ToList(),
 					TotalAmount = totalAmount,
 					Status = "confirmed",
-					PaymentId = null, // Would be set after payment processing
+					PaymentId = null,
 					CreatedAt = DateTime.UtcNow,
 					UpdatedAt = DateTime.UtcNow
 				};
 
-				await _bookings.InsertOneAsync(session, booking);
+				await _bookings.InsertOneAsync(booking);
 
 				// 8. Update seat status to booked
 				var seatUpdate = Builders<EventSeat>.Update
@@ -351,14 +332,11 @@ namespace IPLTicketBooking.Services
 					.Inc(es => es.Version, 1);
 
 				await _eventSeats.UpdateManyAsync(
-					session,
 					Builders<EventSeat>.Filter.In(es => es.Id, seatIds),
 					seatUpdate);
 
 				// 9. Remove the hold record
-				await _seatHolds.DeleteOneAsync(session, holdFilter);
-
-				await session.CommitTransactionAsync();
+				await _seatHolds.DeleteOneAsync(holdFilter);
 
 				return new BookingResult
 				{
@@ -371,11 +349,11 @@ namespace IPLTicketBooking.Services
 			}
 			catch (Exception ex)
 			{
-				await session.AbortTransactionAsync();
 				_logger.LogError(ex, "Error booking seats for event {EventId}", eventId);
 				throw;
 			}
 		}
+
 
 		public async Task<int> ReleaseExpiredHoldsAsync()
 		{

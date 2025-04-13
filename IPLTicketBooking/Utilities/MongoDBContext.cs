@@ -24,5 +24,7 @@ namespace IPLTicketBooking.Utilities
 
 		// If using separate collection for seat holds
 		public IMongoCollection<SeatHold> SeatHolds => _database.GetCollection<SeatHold>("SeatHolds");
+		public IMongoCollection<User> Users => _database.GetCollection<User>("Users");
+		public IMongoCollection<Role> Roles => _database.GetCollection<Role>("Roles");
 	}
 }

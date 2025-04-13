@@ -62,7 +62,7 @@ namespace IPLTicketBooking.Controllers
 		/// Temporarily hold seats for booking
 		/// </summary>
 		[HttpPost("hold")]
-		//[Authorize]
+		[Authorize]
 		public async Task<IActionResult> HoldSeats(string eventId, [FromBody] HoldSeatsRequest request)
 		{
 			try
@@ -71,9 +71,7 @@ namespace IPLTicketBooking.Controllers
 				{
 					return BadRequest(ModelState);
 				}
-				//var a = new 
-				//	var userId = User.FindFirstValue(ClaimTypes.NameIdentifier); // Get user ID from JWT
-				var userId = "67fb60163641e0020b08b231";
+				var userId = User.FindFirstValue(ClaimTypes.NameIdentifier); // Get user ID from JWT
 				var result = await _seatService.HoldSeatsAsync(eventId, request.SeatIds, userId);
 
 				if (!result.Success)
@@ -103,7 +101,7 @@ namespace IPLTicketBooking.Controllers
 		/// Confirm seat booking
 		/// </summary>
 		[HttpPost("book")]
-		//[Authorize]
+		[Authorize]
 		public async Task<IActionResult> BookSeats(string eventId, [FromBody] BookSeatsRequest request)
 		{
 			try

@@ -7,7 +7,7 @@ namespace IPLTicketBooking.Controllers
 {
 	[ApiController]
 	[Route("api/[controller]")]
-	//[Authorize(Roles = "Admin")]
+	
 	public class StadiumsController : ControllerBase
 	{
 		private readonly IStadiumService _stadiumService;
@@ -56,6 +56,7 @@ namespace IPLTicketBooking.Controllers
 		}
 
 		[HttpPost]
+		[Authorize(Roles = "Admin")]
 		public async Task<IActionResult> Create([FromBody] CreateStadiumDto stadiumDto)
 		{
 			try

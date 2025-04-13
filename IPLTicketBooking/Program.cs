@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using System.Text;
 using IPLTicketBooking.Models;
 using IPLTicketBooking.Repositories;
@@ -33,19 +34,20 @@ builder.Services.AddAuthentication(options =>
 		IssuerSigningKey = new SymmetricSecurityKey(
 			Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Secret"]))
 	};
-	options.Events = new JwtBearerEvents
-	{
-		OnAuthenticationFailed = context =>
-		{
-			Console.WriteLine($"Authentication failed: {context.Exception}");
-			return Task.CompletedTask;
-		},
-		OnTokenValidated = context =>
-		{
-			Console.WriteLine("Token validated successfully");
-			return Task.CompletedTask;
-		}
-	};
+	////Debug your auth token
+	//options.Events = new JwtBearerEvents
+	//{
+	//	OnAuthenticationFailed = context =>
+	//	{
+	//		Console.WriteLine($"Authentication failed: {context.Exception}");
+	//		return Task.CompletedTask;
+	//	},
+	//	OnTokenValidated = context =>
+	//	{
+	//		Console.WriteLine("Token validated successfully");
+	//		return Task.CompletedTask;
+	//	}
+	//};
 });
 // Register repositories
 builder.Services.AddScoped<IMongoRepository<Category>>(provider =>
@@ -74,10 +76,10 @@ builder.Services.AddAutoMapper(typeof(MappingProfile));
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-builder.Services.AddAuthorization(options =>
-{
-	options.AddPolicy("RequireAdminRole", policy => policy.RequireRole("Admin"));
-});
+//builder.Services.AddAuthorization(options =>
+//{
+//	options.AddPolicy("RequireAdminRole", policy => policy.RequireRole("Admin"));
+//});
 
 var app = builder.Build();
 
@@ -111,7 +113,15 @@ app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+////debug for role check
+//app.Use(async (context, next) =>
+//{
+//	var user = context.User;
+//	Console.WriteLine($"User authenticated: {user.Identity.IsAuthenticated}");
+//	Console.WriteLine($"User roles: {string.Join(",", user.Claims.Where(c => c.Type == ClaimTypes.Role).Select(c => c.Value))}");
 
+//	await next();
+//});
 //// Background service to release expired holds
 //var seatService = app.Services.GetRequiredService<ISeatService>();
 //var timer = new Timer(async _ =>

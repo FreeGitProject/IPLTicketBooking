@@ -122,7 +122,8 @@ namespace IPLTicketBooking.Services
 			var claims = new List<Claim>
 			{
 				new Claim(ClaimTypes.NameIdentifier, user.Id),
-				new Claim(ClaimTypes.Name, user.Username)
+				new Claim(ClaimTypes.Name, user.Username),
+				// new Claim(ClaimTypes.Role, "User")
 			};
 
 			foreach (var role in roles)

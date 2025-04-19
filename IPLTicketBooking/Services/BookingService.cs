@@ -30,8 +30,7 @@ namespace IPLTicketBooking.Services
             List<string> seatIds,
             string userId)
         {
-            using var session = await _bookings.Database.Client.StartSessionAsync();
-            session.StartTransaction();
+          
 
             try
             {
@@ -40,11 +39,11 @@ namespace IPLTicketBooking.Services
                                     Builders<EventSeat>.Filter.Eq(es => es.EventId, eventId) &
                                     Builders<EventSeat>.Filter.Eq(es => es.Status, "held");
 
-                var heldSeats = await _eventSeats.Find(session, heldSeatsFilter).ToListAsync();
+                var heldSeats = await _eventSeats.Find( heldSeatsFilter).ToListAsync();
 
                 if (heldSeats.Count != seatIds.Count)
                 {
-                    await session.AbortTransactionAsync();
+                   
                     return new BookingResult
                     {
                         Success = false,
@@ -53,10 +52,10 @@ namespace IPLTicketBooking.Services
                 }
 
                 // 2. Get event details for pricing
-                var eventObj = await _events.Find(session, e => e.Id == eventId).FirstOrDefaultAsync();
+                var eventObj = await _events.Find( e => e.Id == eventId).FirstOrDefaultAsync();
                 if (eventObj == null)
                 {
-                    await session.AbortTransactionAsync();
+                  
                     return new BookingResult
                     {
                         Success = false,
@@ -83,7 +82,7 @@ namespace IPLTicketBooking.Services
                     UpdatedAt = DateTime.UtcNow
                 };
 
-                await _bookings.InsertOneAsync(session, booking);
+                await _bookings.InsertOneAsync( booking);
 
                 // 5. Update seat status to booked
                 var seatUpdate = Builders<EventSeat>.Update
@@ -92,11 +91,11 @@ namespace IPLTicketBooking.Services
                     .Inc(es => es.Version, 1);
 
                 await _eventSeats.UpdateManyAsync(
-                    session,
+                  
                     Builders<EventSeat>.Filter.In(es => es.Id, seatIds),
                     seatUpdate);
 
-                await session.CommitTransactionAsync();
+             
 
                 return new BookingResult
                 {
@@ -107,7 +106,7 @@ namespace IPLTicketBooking.Services
             }
             catch (Exception ex)
             {
-                await session.AbortTransactionAsync();
+              
                 _logger.LogError(ex, "Error booking seats for event {EventId}", eventId);
                 throw;
             }
@@ -117,9 +116,7 @@ namespace IPLTicketBooking.Services
             string bookingId,
             string paymentId)
         {
-            using var session = await _bookings.Database.Client.StartSessionAsync();
-            session.StartTransaction();
-
+           
             try
             {
                 // 1. Update booking status and payment ID
@@ -130,13 +127,13 @@ namespace IPLTicketBooking.Services
                     .Set(b => b.UpdatedAt, DateTime.UtcNow);
 
                 var bookingResult = await _bookings.UpdateOneAsync(
-                    session,
+                  
                     bookingFilter,
                     bookingUpdate);
 
                 if (bookingResult.ModifiedCount == 0)
                 {
-                    await session.AbortTransactionAsync();
+                    
                     return new BookingResult
                     {
                         Success = false,
@@ -150,14 +147,14 @@ namespace IPLTicketBooking.Services
                     BookingId = bookingId,
                     RazorpayPaymentId = paymentId,
                     Status = "captured",
-                    Amount = (await _bookings.Find(session, bookingFilter).FirstOrDefaultAsync())?.TotalAmount ?? 0,
+                    Amount = (await _bookings.Find(bookingFilter).FirstOrDefaultAsync())?.TotalAmount ?? 0,
                     Currency = "INR",
                     CreatedAt = DateTime.UtcNow
                 };
 
-                await _payments.InsertOneAsync(session, payment);
+                await _payments.InsertOneAsync( payment);
 
-                await session.CommitTransactionAsync();
+              
 
                 return new BookingResult
                 {
@@ -167,7 +164,7 @@ namespace IPLTicketBooking.Services
             }
             catch (Exception ex)
             {
-                await session.AbortTransactionAsync();
+              
                 _logger.LogError(ex, "Error confirming booking payment {BookingId}", bookingId);
                 throw;
             }
@@ -220,9 +217,7 @@ namespace IPLTicketBooking.Services
 
         public async Task<bool> CancelBookingAsync(string bookingId, string userId, bool isAdmin = false)
         {
-            using var session = await _bookings.Database.Client.StartSessionAsync();
-            session.StartTransaction();
-
+          
             try
             {
                 // Build filter based on user/admin status
@@ -236,7 +231,7 @@ namespace IPLTicketBooking.Services
                 bookingFilter &= Builders<Booking>.Filter.In(b => b.Status,
                     new[] { "pending_payment", "confirmed" });
 
-                var booking = await _bookings.Find(session, bookingFilter).FirstOrDefaultAsync();
+                var booking = await _bookings.Find( bookingFilter).FirstOrDefaultAsync();
                 if (booking == null) return false;
 
                 // 1. Update booking status
@@ -244,7 +239,7 @@ namespace IPLTicketBooking.Services
                     .Set(b => b.Status, "cancelled")
                     .Set(b => b.UpdatedAt, DateTime.UtcNow);
 
-                await _bookings.UpdateOneAsync(session, bookingFilter, bookingUpdate);
+                await _bookings.UpdateOneAsync( bookingFilter, bookingUpdate);
 
                 // 2. Release seats
                 var seatIds = booking.Seats.Select(s => s.SeatId).ToList();
@@ -253,7 +248,7 @@ namespace IPLTicketBooking.Services
                     .Set(es => es.HeldUntil, null);
 
                 await _eventSeats.UpdateManyAsync(
-                    session,
+                    
                     Builders<EventSeat>.Filter.In(es => es.Id, seatIds),
                     seatUpdate);
 
@@ -269,19 +264,19 @@ namespace IPLTicketBooking.Services
                         .Set(p => p.Status, "refund_initiated");
 
                     await _payments.UpdateOneAsync(
-                        session,
+                        
                         Builders<Payment>.Filter.Eq(p => p.RazorpayPaymentId, booking.PaymentId),
                         paymentUpdate);
 
                     // Note: Actual refund processing would be handled by a background service
                 }
 
-                await session.CommitTransactionAsync();
+              
                 return true;
             }
             catch (Exception ex)
             {
-                await session.AbortTransactionAsync();
+               
                 _logger.LogError(ex, "Error cancelling booking {BookingId}", bookingId);
                 throw;
             }

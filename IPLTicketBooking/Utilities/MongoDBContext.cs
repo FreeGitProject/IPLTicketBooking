@@ -1,6 +1,7 @@
 ﻿using IPLTicketBooking.Models;
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
+using Razorpay.Api;
 
 namespace IPLTicketBooking.Utilities
 {
@@ -26,5 +27,7 @@ namespace IPLTicketBooking.Utilities
 		public IMongoCollection<SeatHold> SeatHolds => _database.GetCollection<SeatHold>("SeatHolds");
 		public IMongoCollection<User> Users => _database.GetCollection<User>("Users");
 		public IMongoCollection<Role> Roles => _database.GetCollection<Role>("Roles");
-	}
+		public IMongoCollection<Models.Payment> Payments => _database.GetCollection<Models.Payment>("Payments");
+        public IMongoCollection<Models.Refund> Refunds => _database.GetCollection<Models.Refund>("Refunds");
+    }
 }

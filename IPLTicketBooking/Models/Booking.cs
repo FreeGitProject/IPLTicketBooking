@@ -34,7 +34,9 @@ namespace IPLTicketBooking.Models
 
 		[BsonElement("updatedAt")]
 		public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
-	}
+        [BsonIgnore]
+        public Event Event { get; set; } // Populated when needed
+    }
 
 	public class BookedSeat
 	{

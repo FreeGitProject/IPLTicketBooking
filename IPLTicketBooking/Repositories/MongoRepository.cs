@@ -6,7 +6,7 @@ namespace IPLTicketBooking.Repositories
 	// Repositories/MongoRepository.cs
 	public class MongoRepository<TDocument> : IMongoRepository<TDocument> where TDocument : class
 	{
-		public readonly IMongoCollection<TDocument> _collection;
+		protected readonly IMongoCollection<TDocument> _collection;
 
 		public MongoRepository(IMongoCollection<TDocument> collection)
 		{

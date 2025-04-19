@@ -49,6 +49,9 @@ builder.Services.AddAuthentication(options =>
 	//	}
 	//};
 });
+// Add Razorpay configuration
+builder.Services.Configure<RazorpaySettings>(
+    builder.Configuration.GetSection("Razorpay"));
 // Register repositories
 builder.Services.AddScoped<IMongoRepository<Category>>(provider =>
 	new MongoRepository<Category>(provider.GetRequiredService<MongoDBContext>().Categories));
@@ -64,10 +67,16 @@ builder.Services.AddScoped<IUserRepository>(provider =>
 	new UserRepository(provider.GetRequiredService<MongoDBContext>().Users));
 builder.Services.AddScoped<IRoleRepository>(provider =>
 	new RoleRepository(provider.GetRequiredService<MongoDBContext>().Roles));
+// Add to your service registrations
+builder.Services.AddScoped<IPaymentRepository>(provider =>
+    new PaymentRepository(provider.GetRequiredService<MongoDBContext>().Payments));
+// Register payment services
+builder.Services.AddScoped<IRazorpayService, RazorpayService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IRoleService, RoleService>();
 
 // Register services
+builder.Services.AddScoped<IBookingService, BookingService>();
 builder.Services.AddScoped<ICategoryService, CategoryService>();
 builder.Services.AddScoped<IEventService, EventService>();
 builder.Services.AddScoped<ISeatService, SeatService>();
